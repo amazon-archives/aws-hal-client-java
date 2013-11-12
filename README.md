@@ -1,4 +1,4 @@
 aws-hal-client-java
 ===================
 
-Java client for the Hypertext Application Language
+Java client for AWS APIs using HAL (Hypertext Application Language).

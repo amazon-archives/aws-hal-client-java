@@ -20,16 +20,47 @@ import java.util.Set;
 
 
 /**
- * An optional interface that a HAL resource interface can extend to expose
- * additional details about the resource.
+ * An optional interface that a HAL resource interface can extend to
+ * expose additional details about the resource.
  */
 public interface ResourceInfo {
 
+    /**
+     * Test to see if the current resource contains a link with the
+     * specified relation.
+     *
+     * @param relation the name of the relation to test for
+     * @return True if the link is present, false otherwise
+     */
     boolean _isLinkAvailable(String relation);
 
+
+    /**
+     * A HAL resource may have one or more links.  This method returns
+     * a set with the names of the link relations.
+     *
+     * @return A set of relation names for this resource.
+     */
     Set<String> _getAvailableLinks();
 
-    Object _getProperty(String key);
 
+    /**
+     * Properties of a HAL resource will normally be accessed by
+     * getter methods declared in an resource interface.  This method
+     * can be used to get a property value that isn't exposed for
+     * some reason.
+     *
+     * @param propertyName the name of the property to get
+     * @return the value of the property, or null if it doesn't exist
+     */
+    Object _getProperty(String propertyName);
+
+
+    /**
+     * A HAL resource has at least a "self" link.  This method returns
+     * the href associated with this relation.
+     *
+     * @return the href value of the "self" link.
+     */
     String _getSelfHref();
 }

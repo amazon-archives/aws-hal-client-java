@@ -25,8 +25,8 @@ import java.lang.annotation.Target;
 
 
 /**
- * This is used to annotate a resource method to indicate corresponds to a
- * link to another resource or resources.
+ * This annotation corresponds to a resource's link relation within the
+ * underlying HAL representation.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
@@ -39,6 +39,7 @@ public @interface Link {
      */
     String relation();
 
+
     /**
      * The HTTP method that is used when invoking this link.
      * Defaults to GET.
@@ -49,12 +50,21 @@ public @interface Link {
 
 
     /**
-     * If this Link produces a map, the key for each entry can be either the item's
-     * title or name.  By default, title is used.
+     * If this Link produces a map, the key for each entry can be either
+     * the item's title or name.  By default, title is used.
      *
      * @return the field to use for map's keys.
      */
     KeyField keyField() default KeyField.Title;
+
+
+    /**
+     * If the link relation is templated, these values are pre-specified
+     * values that will be substituted in.
+     *
+     * @return an array of pre-defined URI template values.
+     */
+    UriValue[] uriValues() default {};
 
 
     enum KeyField { Title, Name }

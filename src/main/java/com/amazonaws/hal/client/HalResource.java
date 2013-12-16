@@ -53,8 +53,8 @@ class HalResource
 
 
     @Override
-    public Object _getProperty(String key) {
-        return properties.get(key);
+    public Object _getProperty(String propertyName) {
+        return properties.get(propertyName);
     }
 
 

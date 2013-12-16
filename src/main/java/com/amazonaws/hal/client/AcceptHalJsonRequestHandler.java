@@ -17,13 +17,28 @@ package com.amazonaws.hal.client;
 
 
 import com.amazonaws.Request;
-import com.amazonaws.handlers.AbstractRequestHandler;
+import com.amazonaws.Response;
+import com.amazonaws.handlers.RequestHandler2;
 
 
-class AcceptHalJsonRequestHandler extends AbstractRequestHandler {
+class AcceptHalJsonRequestHandler extends RequestHandler2 {
+
+    //-------------------------------------------------------------
+    // Methods - Implementation
+    //-------------------------------------------------------------
 
     @Override
     public void beforeRequest(Request<?> request) {
         request.addHeader("Accept", "application/hal+json");
+    }
+
+
+    @Override
+    public void afterResponse(Request<?> request, Response<?> response) {
+    }
+
+
+    @Override
+    public void afterError(Request<?> request, Response<?> response, Exception e) {
     }
 }

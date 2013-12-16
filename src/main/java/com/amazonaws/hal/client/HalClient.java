@@ -23,15 +23,14 @@ import com.amazonaws.AmazonWebServiceResponse;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.DefaultRequest;
 import com.amazonaws.Request;
+import com.amazonaws.Response;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.Signer;
 import com.amazonaws.http.ExecutionContext;
 import com.amazonaws.http.HttpMethodName;
 import com.amazonaws.http.HttpResponseHandler;
 import com.amazonaws.http.JsonErrorResponseHandler;
 import com.amazonaws.http.JsonResponseHandler;
-import com.amazonaws.internal.DynamoDBBackoffStrategy;
 import com.amazonaws.transform.JsonErrorUnmarshaller;
 import com.amazonaws.transform.Unmarshaller;
 import com.amazonaws.util.AWSRequestMetrics;
@@ -58,24 +57,22 @@ public class HalClient extends AmazonWebServiceClient {
 
     private AWSCredentialsProvider awsCredentialsProvider;
     private List<Unmarshaller<AmazonServiceException, JSONObject>> exceptionUnmarshallers;
-    private Signer signer;
-    private Map<String, Object> cacheMap;
+    private Map<String, Object> resourceCache;
 
 
     //-------------------------------------------------------------
     // Constructors
     //-------------------------------------------------------------
 
-    public HalClient(ClientConfiguration clientConfiguration, String endpoint, AWSCredentialsProvider awsCredentialsProvider, Signer signer,
-                     Map<String, Object> cacheMap) {
+    public HalClient(ClientConfiguration clientConfiguration, String endpoint, String serviceName, String regionId,
+                     AWSCredentialsProvider awsCredentialsProvider, Map<String, Object> resourceCache) {
         super(clientConfiguration);
 
-        this.setEndpoint(endpoint);
+        this.setEndpoint(endpoint, serviceName, regionId);
         this.awsCredentialsProvider = awsCredentialsProvider;
         this.exceptionUnmarshallers = new ArrayList<>();
         this.exceptionUnmarshallers.add(new JsonErrorUnmarshaller());
-        this.signer = signer;
-        this.cacheMap = cacheMap;
+        this.resourceCache = resourceCache;
         this.addRequestHandler(new AcceptHalJsonRequestHandler());
     }
 
@@ -100,22 +97,25 @@ public class HalClient extends AmazonWebServiceClient {
         assignContent(request, representation);
         awsRequestMetrics.endEvent(AWSRequestMetrics.Field.RequestMarshallTime.name());
 
-        OptionalJsonResponseHandler<HalResource> responseHandler = new OptionalJsonResponseHandler<>(HalJsonResourceUnmarshaller.getInstance());
+        OptionalJsonResponseHandler<HalResource> responseHandler
+                = new OptionalJsonResponseHandler<>(HalJsonResourceUnmarshaller.getInstance());
 
         HalResource halResource = invoke(request, responseHandler, executionContext);
 
-        Object patchedResource = cacheMap.get(resourcePath);
+        Object cachedResource = resourceCache.get(resourcePath);
 
-        if (patchedResource == null) {
-            return createResourceProxy(resourceClass, resourcePath, halResource);
+        if (cachedResource == null) {
+            return createResource(resourceClass, resourcePath, halResource);
         } else {
-            HalResourceInvocationHandler patchedResourceInvocationHandler = (HalResourceInvocationHandler) Proxy.getInvocationHandler(patchedResource);
+            HalResourceInvocationHandler invocationHandler
+                    = (HalResourceInvocationHandler) Proxy.getInvocationHandler(cachedResource);
 
-            patchedResourceInvocationHandler.resourceUpdated(resourcePath.equals(halResource._getSelfHref()) ? halResource : null);
+            boolean resourceUpdated = resourcePath.equals(halResource._getSelfHref());
+            invocationHandler.resourceUpdated(resourceUpdated ? halResource : null);
             // TODO: follow embedded resources and call resourceUpdated()
 
             //noinspection unchecked
-            return (T) patchedResource;
+            return (T) cachedResource;
         }
     }
 
@@ -131,16 +131,18 @@ public class HalClient extends AmazonWebServiceClient {
         assignContent(request, representation);
         awsRequestMetrics.endEvent(AWSRequestMetrics.Field.RequestMarshallTime.name());
 
-        OptionalJsonResponseHandler<HalResource> responseHandler = new OptionalJsonResponseHandler<>(HalJsonResourceUnmarshaller.getInstance());
+        OptionalJsonResponseHandler<HalResource> responseHandler
+                = new OptionalJsonResponseHandler<>(HalJsonResourceUnmarshaller.getInstance());
 
         HalResource halResource = invoke(request, responseHandler, executionContext);
 
-        Object postedResource = cacheMap.get(resourcePath);
+        Object cachedResourceProxy = resourceCache.get(resourcePath);
 
-        if (postedResource != null) {
-            HalResourceInvocationHandler postedResourceInvocationHandler = (HalResourceInvocationHandler) Proxy.getInvocationHandler(postedResource);
+        if (cachedResourceProxy != null) {
+            HalResourceInvocationHandler invocationHandler
+                    = (HalResourceInvocationHandler) Proxy.getInvocationHandler(cachedResourceProxy);
 
-            postedResourceInvocationHandler.resourceUpdated(null);
+            invocationHandler.resourceUpdated(null);
             // TODO: follow embedded resources and call resourceUpdated()
         }
 
@@ -158,7 +160,7 @@ public class HalClient extends AmazonWebServiceClient {
             }
         }
 
-        return createResourceProxy(resourceClass, locationPath, halResource);
+        return createResource(resourceClass, locationPath, halResource);
     }
 
 
@@ -172,11 +174,12 @@ public class HalClient extends AmazonWebServiceClient {
         populateResourcePathAndParameters(request, resourcePath);
         awsRequestMetrics.endEvent(AWSRequestMetrics.Field.RequestMarshallTime.name());
 
-        JsonResponseHandler<HalResource> responseHandler = new JsonResponseHandler<>(HalJsonResourceUnmarshaller.getInstance());
+        JsonResponseHandler<HalResource> responseHandler
+                = new JsonResponseHandler<>(HalJsonResourceUnmarshaller.getInstance());
 
         invoke(request, responseHandler, executionContext);
 
-        cacheMap.remove(resourcePath);
+        resourceCache.remove(resourcePath);
         // TODO: follow embedded resources and call remove()
     }
 
@@ -186,8 +189,8 @@ public class HalClient extends AmazonWebServiceClient {
     //-------------------------------------------------------------
 
     <T> T getResource(HalResource sourceResource, Class<T> resourceClass, String resourcePath, boolean lazy) {
-        if (cacheMap.containsKey(resourcePath)) {
-            return resourceClass.cast(cacheMap.get(resourcePath));
+        if (resourceCache.containsKey(resourcePath)) {
+            return resourceClass.cast(resourceCache.get(resourcePath));
         }
 
         HalResource halResource;
@@ -200,7 +203,7 @@ public class HalClient extends AmazonWebServiceClient {
             halResource = getHalResource(resourcePath);
         }
 
-        return createResourceProxy(resourceClass, resourcePath, halResource);
+        return createResource(resourceClass, resourcePath, halResource);
     }
 
 
@@ -214,9 +217,7 @@ public class HalClient extends AmazonWebServiceClient {
         populateResourcePathAndParameters(request, resourcePath);
         awsRequestMetrics.endEvent(AWSRequestMetrics.Field.RequestMarshallTime.name());
 
-        JsonResponseHandler<HalResource> responseHandler = new JsonResponseHandler<>(HalJsonResourceUnmarshaller.getInstance());
-
-        return invoke(request, responseHandler, executionContext);
+        return invoke(request, new JsonResponseHandler<>(HalJsonResourceUnmarshaller.getInstance()), executionContext);
     }
 
 
@@ -243,13 +244,15 @@ public class HalClient extends AmazonWebServiceClient {
                 request.addParameter(URLDecoder.decode(parameterPair), null);
             } else { // key=value
                 //noinspection deprecation
-                request.addParameter(URLDecoder.decode(parameterPair.substring(0, equalIndex)), URLDecoder.decode(parameterPair.substring(equalIndex + 1)));
+                request.addParameter(URLDecoder.decode(parameterPair.substring(0, equalIndex)),
+                                     URLDecoder.decode(parameterPair.substring(equalIndex + 1)));
             }
         }
     }
 
 
-    private <T> T invoke(Request request, HttpResponseHandler<AmazonWebServiceResponse<T>> responseHandler, ExecutionContext executionContext)
+    private <T> T invoke(Request request, HttpResponseHandler<AmazonWebServiceResponse<T>> responseHandler,
+                         ExecutionContext executionContext)
             throws AmazonClientException {
         request.setEndpoint(endpoint);
 
@@ -259,19 +262,18 @@ public class HalClient extends AmazonWebServiceClient {
         AWSCredentials credentials = awsCredentialsProvider.getCredentials();
         awsRequestMetrics.endEvent(AWSRequestMetrics.Field.CredentialsRequestTime.name());
 
-        executionContext.setSigner(signer);
+        executionContext.setSigner(getSigner());
         executionContext.setCredentials(credentials);
-        executionContext.setCustomBackoffStrategy(DynamoDBBackoffStrategy.DEFAULT);
 
         JsonErrorResponseHandler errorResponseHandler = new JsonErrorResponseHandler(exceptionUnmarshallers);
 
         awsRequestMetrics.startEvent(AWSRequestMetrics.Field.ClientExecuteTime.name());
-        T result = client.execute(request, responseHandler, errorResponseHandler, executionContext);
+        Response<T> response = client.execute(request, responseHandler, errorResponseHandler, executionContext);
         awsRequestMetrics.endEvent(AWSRequestMetrics.Field.ClientExecuteTime.name());
 
         awsRequestMetrics.log();
 
-        return result;
+        return response.getAwsResponse();
     }
 
 
@@ -294,12 +296,12 @@ public class HalClient extends AmazonWebServiceClient {
     }
 
 
-    private <T> T createResourceProxy(Class<T> resourceClass, String resourcePath, HalResource halResource) {
+    private <T> T createResource(Class<T> resourceClass, String resourcePath, HalResource halResource) {
         Object proxy = Proxy.newProxyInstance(resourceClass.getClassLoader(),
                                               new Class<?>[] { resourceClass },
                                               new HalResourceInvocationHandler(halResource, resourcePath, this));
 
-        cacheMap.put(resourcePath, proxy);
+        resourceCache.put(resourcePath, proxy);
 
         return resourceClass.cast(proxy);
     }

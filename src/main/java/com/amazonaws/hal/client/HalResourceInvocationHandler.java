@@ -18,18 +18,22 @@ package com.amazonaws.hal.client;
 
 import com.amazonaws.hal.Link;
 import com.amazonaws.hal.ResourceInfo;
+import com.amazonaws.hal.UriValue;
+import com.amazonaws.hal.UriVariable;
 
+import com.damnhandy.uri.template.MalformedUriTemplateException;
+import com.damnhandy.uri.template.UriTemplate;
+import com.damnhandy.uri.template.VariableExpansionException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static com.amazonaws.hal.client.ConversionUtil.convert;
 import static com.amazonaws.hal.client.ConversionUtil.getCollectionType;
@@ -47,7 +51,6 @@ class HalResourceInvocationHandler
     private String resourcePath;
     private HalClient halClient;
 
-    private static final Pattern URI_TEMPLATE_PATTERN = Pattern.compile("\\{.+\\}") ;
     private static Log log = LogFactory.getLog(HalResourceInvocationHandler.class);
 
 
@@ -90,12 +93,17 @@ class HalResourceInvocationHandler
             case GET:
                 if (List.class.isAssignableFrom(method.getReturnType())) {
                     //noinspection unchecked
-                    return new HalLinkList(halResource, link.relation(), getCollectionType(method.getGenericReturnType(), 0, ResourceInfo.class), halClient);
+                    return new HalLinkList(halResource, link.relation(),
+                                           getCollectionType(method.getGenericReturnType(), 0, ResourceInfo.class),
+                                           halClient);
                 } else if (Map.class.isAssignableFrom(method.getReturnType())) {
                     //noinspection unchecked
-                    return new HalLinkMap(halResource, link.relation(), link.keyField(), getCollectionType(method.getGenericReturnType(), 1, ResourceInfo.class), halClient);
+                    return new HalLinkMap(halResource, link.relation(), link.keyField(),
+                                          getCollectionType(method.getGenericReturnType(), 1, ResourceInfo.class),
+                                          halClient);
                 } else {
-                    return halClient.getResource(halResource, method.getReturnType(), getRelationHref(link.relation(), args), false);
+                    return halClient.getResource(halResource, method.getReturnType(),
+                                                 getRelationHref(link, args, method.getParameterAnnotations()), false);
                 }
 
             case POST:
@@ -103,17 +111,19 @@ class HalResourceInvocationHandler
                     throw new IllegalArgumentException("POST operations require a representation argument.");
                 }
 
-                return halClient.postResource(method.getReturnType(), getRelationHref(link.relation(), args), args[0]);
+                return halClient.postResource(method.getReturnType(),
+                                              getRelationHref(link, args, method.getParameterAnnotations()), args[0]);
 
             case PUT:
                 if (args == null) {
                     throw new IllegalArgumentException("PUT operations require a representation argument.");
                 }
 
-                return halClient.putResource(method.getReturnType(), getRelationHref(link.relation(), args), args[0]);
+                return halClient.putResource(method.getReturnType(),
+                                             getRelationHref(link, args, method.getParameterAnnotations()), args[0]);
 
             case DELETE:
-                halClient.deleteResource(getRelationHref(link.relation(), args));
+                halClient.deleteResource(getRelationHref(link, args, method.getParameterAnnotations()));
 
                 break;
 
@@ -165,34 +175,59 @@ class HalResourceInvocationHandler
     // Methods - Private
     //-------------------------------------------------------------
 
-    private String getRelationHref(String relation, Object[] args) {
-        HalLink halLink = halResource.getLink(relation);
+    private String getRelationHref(Link link, Object[] args, Annotation[][] parameterAnnotations) {
+        HalLink halLink = halResource.getLink(link.relation());
 
         if (halLink == null) {
-            throw new UnsupportedOperationException(relation);
+            throw new UnsupportedOperationException(link.relation());
         }
 
         if (halLink.getDeprecation() != null) {
-            log.warn("Link '" + relation + "' has been deprecated: " + halLink.getDeprecation());
+            log.warn("Link '" + link + "' has been deprecated: " + halLink.getDeprecation());
         }
 
         String href;
 
         if (halLink.isTemplated()) {
-            StringBuffer hrefStringBuffer = new StringBuffer();
-            Matcher matcher = URI_TEMPLATE_PATTERN.matcher(halLink.getHref());
-            int argsIndex = 0;
+            try {
+                UriTemplate uriTemplate = UriTemplate.fromTemplate(halLink.getHref());
 
-            while (matcher.find()) {
-                matcher.appendReplacement(hrefStringBuffer, args[argsIndex++].toString());
+                for (int i = 0; i < args.length; i++) {
+                    for (Annotation annotation : parameterAnnotations[i]) {
+                        if (annotation.annotationType() == UriVariable.class) {
+                            UriVariable uriVariable = (UriVariable) annotation;
+
+                            assignTemplateValue(uriTemplate, uriVariable.name(), args[i]);
+                        }
+                    }
+                }
+
+                for (int i = 0; i < link.uriValues().length; i++) {
+                    UriValue uriValue = link.uriValues()[i];
+
+                    assignTemplateValue(uriTemplate, uriValue.name(), uriValue.value());
+                }
+
+                href = uriTemplate.expand();
+            } catch (MalformedUriTemplateException | VariableExpansionException e) {
+                throw new RuntimeException(e);
             }
-            matcher.appendTail(hrefStringBuffer);
-
-            href = hrefStringBuffer.toString();
         } else {
             href = halLink.getHref();
         }
 
         return href;
+    }
+
+
+    private void assignTemplateValue(UriTemplate uriTemplate, String variableName, Object value) {
+        if (uriTemplate.hasVariable(variableName)) {
+            log.warn(String.format("Duplicate assignment to variable %s.  Current = '%s', skipping new value '%s'.",
+                                   variableName, uriTemplate.get(variableName), value));
+
+            return;
+        }
+
+        uriTemplate.set(variableName, value);
     }
 }

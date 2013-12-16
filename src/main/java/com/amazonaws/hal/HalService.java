@@ -17,10 +17,8 @@ package com.amazonaws.hal;
 
 
 import com.amazonaws.ClientConfiguration;
-import com.amazonaws.auth.AWS4Signer;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
-import com.amazonaws.auth.Signer;
 import com.amazonaws.hal.client.HalClient;
 
 import java.util.Map;
@@ -28,7 +26,7 @@ import java.util.Map;
 
 /**
  * The HalService simplifies the configuration and access to an AWS HAL-based service API.  It is constructed
- * with a service endpoint, the interface class that describes the service's root resource, and an optional path
+ * with service information, the interface class that describes the service's root resource, and an optional path
  * to the service root (if not specified it is assumed to be "/").  A HalService can be further configured,
  * using the builder pattern, to use a particular AWSCredentialsProvider or ClientConfiguration.
  *
@@ -43,11 +41,12 @@ public class HalService<T> {
     //-------------------------------------------------------------
 
     private String endpoint;
+    private String serviceName;
+    private String regionId;
     private Class<T> rootClass;
     private String rootPath;
     private ClientConfiguration clientConfiguration;
     private AWSCredentialsProvider awsCredentialsProvider;
-    private Signer signer;
     private Map<String, Object> resourceCache;
     private HalClient halClient;
 
@@ -58,13 +57,15 @@ public class HalService<T> {
     // Constructors
     //-------------------------------------------------------------
 
-    public HalService(String endpoint, Class<T> rootClass) {
-        this(endpoint, rootClass, DEFAULT_ROOT_PATH);
+    public HalService(String endpoint, String serviceName, String regionId, Class<T> rootClass) {
+        this(endpoint, serviceName, regionId, rootClass, DEFAULT_ROOT_PATH);
     }
 
 
-    public HalService(String endpoint, Class<T> rootClass, String rootPath) {
+    public HalService(String endpoint, String serviceName, String regionId, Class<T> rootClass, String rootPath) {
         this.endpoint = endpoint;
+        this.serviceName = serviceName;
+        this.regionId = regionId;
         this.rootClass = rootClass;
         this.rootPath = rootPath;
     }
@@ -98,18 +99,6 @@ public class HalService<T> {
     }
 
 
-    public HalService<T> with(Signer signer) {
-        setSigner(signer);
-
-        return this;
-    }
-
-
-    public void setSigner(Signer signer) {
-        this.signer = signer;
-    }
-
-
     public HalService<T> with(Map<String, Object> resourceCache) {
         setResourceCache(resourceCache);
 
@@ -139,8 +128,9 @@ public class HalService<T> {
         if (halClient == null) {
             this.halClient = new HalClient(clientConfiguration == null ? new ClientConfiguration() : clientConfiguration,
                                            endpoint,
+                                           serviceName,
+                                           regionId,
                                            awsCredentialsProvider == null ? new DefaultAWSCredentialsProviderChain() : awsCredentialsProvider,
-                                           signer == null ? new AWS4Signer() : signer,
                                            resourceCache == null ? ImmediatelyExpiringCache.getInstance() : resourceCache);
         }
 

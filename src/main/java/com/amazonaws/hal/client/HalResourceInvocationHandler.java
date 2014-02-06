@@ -73,7 +73,7 @@ class HalResourceInvocationHandler
      */
     public Object invoke(Object proxy, Method method, Object[] args)
             throws Throwable {
-        if (halResource == null) {
+        if (halResource == null || !halResource.isDefined()) {
             halResource = halClient.getHalResource(resourcePath);
         }
 
@@ -123,9 +123,8 @@ class HalResourceInvocationHandler
                                              getRelationHref(link, args, method.getParameterAnnotations()), args[0]);
 
             case DELETE:
-                halClient.deleteResource(getRelationHref(link, args, method.getParameterAnnotations()));
-
-                break;
+                return halClient.deleteResource(method.getReturnType(),
+                                                getRelationHref(link, args, method.getParameterAnnotations()));
 
             default:
                 throw new UnsupportedOperationException("Unexpected HTTP method: " + link.method());

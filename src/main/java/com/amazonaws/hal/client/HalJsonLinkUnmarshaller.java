@@ -69,7 +69,7 @@ class HalJsonLinkUnmarshaller
                     context.nextToken();
                     halLink.setDeprecation(context.readText());
                 } else {
-                    // Ignore this.  Likely one of title, hreflang, profile, type
+                    // Ignore this.  Likely one of hreflang, profile, type
                     context.nextToken();
                 }
             }

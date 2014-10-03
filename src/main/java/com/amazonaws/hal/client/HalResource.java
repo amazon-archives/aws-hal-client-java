@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2010-2014 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -60,13 +60,19 @@ class HalResource
 
     @Override
     public String _getSelfHref() {
-        HalLink selfLink = getLink("self");
+        return _getLinkHref("self");
+    }
 
-        if (selfLink == null) {
+
+    @Override
+    public String _getLinkHref(String relation) {
+        HalLink link = getLink(relation);
+
+        if (link == null) {
             return null;
         }
 
-        return selfLink.getHref();
+        return link.getHref();
     }
 
 

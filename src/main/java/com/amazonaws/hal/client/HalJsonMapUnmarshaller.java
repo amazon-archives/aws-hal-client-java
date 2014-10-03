@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2010-2014 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ class HalJsonMapUnmarshaller
     public Map<String, Object> unmarshall(JsonUnmarshallerContext context)
             throws Exception {
         Map<String, Object> map = new HashMap<>();
-        JsonToken token = context.currentToken;
+        JsonToken token = context.getCurrentToken();
 
         while (token != null && token != JsonToken.END_OBJECT) {
             if (token == JsonToken.FIELD_NAME) {
@@ -66,7 +66,7 @@ class HalJsonMapUnmarshaller
                     context.nextToken();
                     map.put(property, HalJsonListUnmarshaller.getInstance().unmarshall(context));
                 } else {
-                    map.put(property, context.readText());
+                    map.put(property, JsonUnmarshallerUtil.getObjectForToken(token, context));
                 }
             }
 

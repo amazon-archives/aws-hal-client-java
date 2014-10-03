@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2010-2014 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ class HalJsonLinkUnmarshaller
     public HalLink unmarshall(JsonUnmarshallerContext context)
             throws Exception {
         HalLink halLink = new HalLink();
-        JsonToken token = context.currentToken;
+        JsonToken token = context.getCurrentToken();
 
         while (token != null && token != JsonToken.END_OBJECT) {
             if (token == JsonToken.FIELD_NAME) {

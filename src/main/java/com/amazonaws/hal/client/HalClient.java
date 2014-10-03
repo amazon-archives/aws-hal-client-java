@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2010-2014 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@ package com.amazonaws.hal.client;
 
 
 import com.amazonaws.AmazonClientException;
-import com.amazonaws.AmazonServiceException;
 import com.amazonaws.AmazonWebServiceClient;
 import com.amazonaws.AmazonWebServiceResponse;
 import com.amazonaws.ClientConfiguration;
@@ -32,7 +31,6 @@ import com.amazonaws.http.HttpResponseHandler;
 import com.amazonaws.http.JsonErrorResponseHandler;
 import com.amazonaws.http.JsonResponseHandler;
 import com.amazonaws.transform.JsonErrorUnmarshaller;
-import com.amazonaws.transform.Unmarshaller;
 import com.amazonaws.util.AWSRequestMetrics;
 import com.amazonaws.util.StringInputStream;
 import com.amazonaws.util.json.JSONObject;
@@ -61,7 +59,7 @@ public class HalClient extends AmazonWebServiceClient {
     //-------------------------------------------------------------
 
     private AWSCredentialsProvider awsCredentialsProvider;
-    private List<Unmarshaller<AmazonServiceException, JSONObject>> exceptionUnmarshallers;
+    private List<JsonErrorUnmarshaller> exceptionUnmarshallers;
     private Map<String, Object> resourceCache;
 
 
@@ -69,11 +67,12 @@ public class HalClient extends AmazonWebServiceClient {
     // Constructors
     //-------------------------------------------------------------
 
-    public HalClient(ClientConfiguration clientConfiguration, String endpoint, String serviceName, String regionId,
+    public HalClient(ClientConfiguration clientConfiguration, String endpoint, String serviceName,
                      AWSCredentialsProvider awsCredentialsProvider, Map<String, Object> resourceCache) {
         super(clientConfiguration);
 
-        this.setEndpoint(endpoint, serviceName, regionId);
+        this.setServiceNameIntern(serviceName);
+        this.setEndpoint(endpoint);
         this.awsCredentialsProvider = awsCredentialsProvider;
         this.exceptionUnmarshallers = new ArrayList<>();
         this.exceptionUnmarshallers.add(new JsonErrorUnmarshaller());
@@ -203,7 +202,6 @@ public class HalClient extends AmazonWebServiceClient {
         AWSCredentials credentials = awsCredentialsProvider.getCredentials();
         awsRequestMetrics.endEvent(AWSRequestMetrics.Field.CredentialsRequestTime.name());
 
-        executionContext.setSigner(getSigner());
         executionContext.setCredentials(credentials);
 
         JsonErrorResponseHandler errorResponseHandler = new JsonErrorResponseHandler(exceptionUnmarshallers);

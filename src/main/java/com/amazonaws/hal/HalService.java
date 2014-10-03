@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2010-2014 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -42,7 +42,6 @@ public class HalService<T> {
 
     private String endpoint;
     private String serviceName;
-    private String regionId;
     private Class<T> rootClass;
     private String rootPath;
     private ClientConfiguration clientConfiguration;
@@ -57,15 +56,14 @@ public class HalService<T> {
     // Constructors
     //-------------------------------------------------------------
 
-    public HalService(String endpoint, String serviceName, String regionId, Class<T> rootClass) {
-        this(endpoint, serviceName, regionId, rootClass, DEFAULT_ROOT_PATH);
+    public HalService(String endpoint, String serviceName, Class<T> rootClass) {
+        this(endpoint, serviceName, rootClass, DEFAULT_ROOT_PATH);
     }
 
 
-    public HalService(String endpoint, String serviceName, String regionId, Class<T> rootClass, String rootPath) {
+    public HalService(String endpoint, String serviceName, Class<T> rootClass, String rootPath) {
         this.endpoint = endpoint;
         this.serviceName = serviceName;
-        this.regionId = regionId;
         this.rootClass = rootClass;
         this.rootPath = rootPath;
     }
@@ -129,7 +127,6 @@ public class HalService<T> {
             this.halClient = new HalClient(clientConfiguration == null ? new ClientConfiguration() : clientConfiguration,
                                            endpoint,
                                            serviceName,
-                                           regionId,
                                            awsCredentialsProvider == null ? new DefaultAWSCredentialsProviderChain() : awsCredentialsProvider,
                                            resourceCache == null ? ImmediatelyExpiringCache.getInstance() : resourceCache);
         }

@@ -1,2 +1,2 @@
 Java client for AWS APIs using HAL (Hypertext Application Language).
-Copyright 2013 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+Copyright 2013-2014 Amazon.com, Inc. or its affiliates. All Rights Reserved.

@@ -17,45 +17,42 @@ package com.amazonaws.hal.client;
 
 
 import com.amazonaws.transform.JsonUnmarshallerContext;
-import com.amazonaws.transform.Unmarshaller;
 
 import com.fasterxml.jackson.core.JsonToken;
 
+import java.io.IOException;
 
-class HalJsonCurieUnmarshaller
-        implements Unmarshaller<HalLink, JsonUnmarshallerContext> {
 
-    //-------------------------------------------------------------
-    // Variables - Private - Static
-    //-------------------------------------------------------------
-
-    private static HalJsonCurieUnmarshaller instance = new HalJsonCurieUnmarshaller();
-
+class JsonUnmarshallerUtil {
 
     //-------------------------------------------------------------
-    // Methods - Package - Static
+    // Constructors
     //-------------------------------------------------------------
 
-    static HalJsonCurieUnmarshaller getInstance() {
-        return instance;
+    private JsonUnmarshallerUtil() {
     }
 
 
     //-------------------------------------------------------------
-    // Implementation - Unmarshaller
+    // Methods - Package
     //-------------------------------------------------------------
 
-    @Override
-    public HalLink unmarshall(JsonUnmarshallerContext context)
-            throws Exception {
-        HalLink halLink = new HalLink();
-        JsonToken token = context.getCurrentToken();
-
-        // Ignore curies for now.
-        while (token != null && token != JsonToken.END_OBJECT) {
-            token = context.nextToken();
+    static Object getObjectForToken(JsonToken token, JsonUnmarshallerContext context)
+            throws IOException {
+        switch (token) {
+        case VALUE_STRING:
+            return context.getJsonParser().getText();
+        case VALUE_NUMBER_FLOAT:
+        case VALUE_NUMBER_INT:
+            return context.getJsonParser().getNumberValue();
+        case VALUE_FALSE:
+            return Boolean.FALSE;
+        case VALUE_TRUE:
+            return Boolean.TRUE;
+        case VALUE_NULL:
+            return null;
+        default:
+            throw new RuntimeException("We expected a VALUE token but got: " + token);
         }
-
-        return halLink;
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2010-2014 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -52,11 +52,11 @@ class ConversionUtil {
     // Methods - Package
     //-------------------------------------------------------------
 
-    static Class getCollectionType(Type type, int index, Class defaultClass) {
+    static Type getCollectionType(Type type, int index, Class defaultClass) {
         if (type instanceof ParameterizedType) {
             ParameterizedType parameterizedType = (ParameterizedType) type;
 
-            return (Class) parameterizedType.getActualTypeArguments()[index];
+            return parameterizedType.getActualTypeArguments()[index];
         } else {
             return defaultClass;
         }
@@ -75,6 +75,10 @@ class ConversionUtil {
     static Object convert(Type type, Object value) {
         if (value == null) {
             return convertFromNull(type);
+        } else if (value instanceof Number) {
+            return convertFromNumber((Class) type, (Number) value);
+        } else if (value instanceof Boolean) {
+            return value;
         } else if (value instanceof String) {
             return convertFromString((Class) type, (String) value);
         } else if (value instanceof Map) {
@@ -123,7 +127,54 @@ class ConversionUtil {
         }
     }
 
+    
+    private static Object convertFromNumber(Class<?> clazz, Number value) {
+        if (String.class.isAssignableFrom(clazz)) {
+            return value.toString();
+        } else if (int.class.isAssignableFrom(clazz) || Integer.class.isAssignableFrom(clazz)) {
+            return value.intValue();
+        } else if (long.class.isAssignableFrom(clazz) || Long.class.isAssignableFrom(clazz)) {
+            return value.longValue();
+        } else if (short.class.isAssignableFrom(clazz) || Short.class.isAssignableFrom(clazz)) {
+            return value.shortValue();
+        } else if (double.class.isAssignableFrom(clazz) || Double.class.isAssignableFrom(clazz)) {
+            return value.doubleValue();
+        } else if (float.class.isAssignableFrom(clazz) || Float.class.isAssignableFrom(clazz)) {
+            return value.floatValue();
+        } else if (boolean.class.isAssignableFrom(clazz) || Boolean.class.isAssignableFrom(clazz)) {
+            return Boolean.valueOf(value.toString());
+        } else if (char.class.isAssignableFrom(clazz) || Character.class.isAssignableFrom(clazz)) {
+            if (value.longValue() <= 255) {
+                return (char)value.longValue();
+            } else {
+                throw new RuntimeException("Not sure how to convert " + value + " to a " + clazz.getSimpleName());
+            }
+        } else if (byte.class.isAssignableFrom(clazz) || Byte.class.isAssignableFrom(clazz)) {
+            return value.byteValue();
+        } else if (BigDecimal.class.isAssignableFrom(clazz)) {
+            return new BigDecimal(value.toString());
+        } else if (BigInteger.class.isAssignableFrom(clazz)) {
+            // Necessary because BigInteger(long) is a private method and we need to convert the Number to a long to
+            // prevent the constructor from throwing a NumberFormatException Example: BigInteger(1.2)
+            return new BigInteger(String.valueOf(value.longValue()));
+        } else if (Date.class.isAssignableFrom(clazz)) {
+            return new Date(value.longValue());
+        } else if (clazz.isEnum()) {
+            try {
+                //noinspection unchecked
+                return Enum.valueOf((Class<Enum>) clazz, value.toString());
+            } catch (IllegalArgumentException e) {
+                log.error(String.format("'%s' is not a recognized enum value for %s.  Returning default of %s instead.",
+                                        value, clazz.getName(), clazz.getEnumConstants()[0]));
 
+                return clazz.getEnumConstants()[0];
+            }
+        } else {
+            throw new RuntimeException("Not sure how to convert " + value + " to a " + clazz.getSimpleName());
+        }
+    }
+    
+    
     private static Object convertFromString(Class<?> clazz, String value) {
         if (String.class.isAssignableFrom(clazz)) {
             return value;
@@ -138,7 +189,7 @@ class ConversionUtil {
         } else if (float.class.isAssignableFrom(clazz) || Float.class.isAssignableFrom(clazz)) {
             return new Float(value);
         } else if (boolean.class.isAssignableFrom(clazz) || Boolean.class.isAssignableFrom(clazz)) {
-            return Boolean.getBoolean(value);
+            return Boolean.valueOf(value);
         } else if (char.class.isAssignableFrom(clazz) || Character.class.isAssignableFrom(clazz)) {
             return value.charAt(0);
         } else if (byte.class.isAssignableFrom(clazz) || Byte.class.isAssignableFrom(clazz)) {
@@ -179,7 +230,7 @@ class ConversionUtil {
 
             return Proxy.newProxyInstance(typeClass.getClassLoader(),
                                           new Class<?>[] { typeClass },
-                                          new MapBackedInvocationHandler(value));
+                                          new MapBackedInvocationHandler(type, value));
         } else {
             return new ConvertingMap(getCollectionType(type, 1, Object.class), value);
         }

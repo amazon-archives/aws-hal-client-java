@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2010-2014 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -70,9 +70,44 @@ public class ConvertingMap
     }
 
 
+    // TODO: test w/ map of Integer...
     @Override
     public Object get(Object key) {
-        return convert(type, backingMap.get(key));
+        Object value = backingMap.get(key);
+
+        // When a value is accessed, it's intended type can either be a
+        // class or some other type (like a ParameterizedType).
+        //
+        // If the target type is a class and the value is of that type,
+        // we return it.  If the value is not of that type, we convert
+        // it and store the converted value (trusting it was converted
+        // properly) back to the backing store.
+        //
+        // If the target type is not a class, it may be ParameterizedType
+        // like List<T> or Map<K, V>.  We check if the value is already
+        // a converting type and if so, we return it.  If the value is
+        // not, we convert it and if it's now a converting type, we store
+        // the new value in the backing store.
+
+        if (type instanceof Class) {
+            if (!((Class) type).isInstance(value)) {
+                value = convert(type, value);
+
+                //noinspection unchecked
+                backingMap.put(key, value);
+            }
+        } else {
+            if (!(value instanceof ConvertingMap) && !(value instanceof ConvertingList)) {
+                value = convert(type, value);
+
+                if (value instanceof ConvertingMap || value instanceof ConvertingList) {
+                    //noinspection unchecked
+                    backingMap.put(key, value);
+                }
+            }
+        }
+
+        return value;
     }
 
 
@@ -202,7 +237,14 @@ public class ConvertingMap
 
         @Override
         public Object getValue() {
-            return convert(type, value);
+            if (!(type instanceof Class) || !value.getClass().isAssignableFrom((Class) type)) {
+                value = convert(type, value);
+
+                // TODO: Re-store this in the backingIterator, but beware ConcurrentModificationException
+//                backingMap.put(key, value);
+            }
+
+            return value;
         }
 
 
@@ -211,5 +253,4 @@ public class ConvertingMap
             throw new UnsupportedOperationException();
         }
     }
-
 }

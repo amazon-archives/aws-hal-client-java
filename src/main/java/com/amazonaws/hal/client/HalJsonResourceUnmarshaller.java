@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2010-2014 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ class HalJsonResourceUnmarshaller
     public HalResource unmarshall(JsonUnmarshallerContext context)
             throws Exception {
         HalResource halResource = new HalResource();
-        JsonToken token = context.currentToken;
+        JsonToken token = context.getCurrentToken();
 
         if (token == null) {
             token = context.nextToken();
@@ -75,7 +75,7 @@ class HalJsonResourceUnmarshaller
                         context.nextToken();
                         halResource.addProperty(property, HalJsonListUnmarshaller.getInstance().unmarshall(context));
                     } else {
-                        halResource.addProperty(property, context.readText());
+                        halResource.addProperty(property, JsonUnmarshallerUtil.getObjectForToken(token, context));
                     }
                 }
             }

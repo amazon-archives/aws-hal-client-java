@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2010-2014 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -63,4 +63,13 @@ public interface ResourceInfo {
      * @return the href value of the "self" link.
      */
     String _getSelfHref();
+
+
+    /**
+     * Get the href associated to the link with the specified relation.
+     *
+     * @param relation the name of the relation
+     * @return the href value of the specified relation
+     */
+    String _getLinkHref(String relation);
 }

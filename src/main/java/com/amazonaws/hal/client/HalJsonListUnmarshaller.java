@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2010-2014 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -52,11 +52,11 @@ class HalJsonListUnmarshaller
     public List<Object> unmarshall(JsonUnmarshallerContext context)
             throws Exception {
         List<Object> list = new ArrayList<>();
-        JsonToken token = context.currentToken;
+        JsonToken token = context.getCurrentToken();
 
         while (token != null && token != JsonToken.END_ARRAY) {
             if (token.isScalarValue()) {
-                list.add(context.readText());
+                list.add(JsonUnmarshallerUtil.getObjectForToken(token, context));
             } else if (token == JsonToken.START_OBJECT) {
                 context.nextToken();
                 list.add(HalJsonMapUnmarshaller.getInstance().unmarshall(context));

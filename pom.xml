@@ -20,7 +20,7 @@
     <name>HalClient</name>
     <groupId>com.amazonaws</groupId>
     <artifactId>aws-hal-client-java</artifactId>
-    <version>1.3-SNAPSHOT</version>
+    <version>1.3.0</version>
     <packaging>jar</packaging>
 
     <parent>
@@ -168,7 +168,7 @@
         <url>scm:git:git@github.com:awslabs/aws-hal-client-java.git</url>
         <connection>scm:git:git@github.com:awslabs/aws-hal-client-java.git</connection>
         <developerConnection>scm:git:git@github.com:awslabs/aws-hal-client-java.git</developerConnection>
-      <tag>HEAD</tag>
+      <tag>aws-hal-client-java-1.3.0</tag>
   </scm>
 
 </project>

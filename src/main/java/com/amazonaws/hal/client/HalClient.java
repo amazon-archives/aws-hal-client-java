@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2014 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2010-2015 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ package com.amazonaws.hal.client;
 
 
 import com.amazonaws.AmazonClientException;
+import com.amazonaws.AmazonServiceException;
 import com.amazonaws.AmazonWebServiceClient;
 import com.amazonaws.AmazonWebServiceResponse;
 import com.amazonaws.ClientConfiguration;
@@ -31,6 +32,7 @@ import com.amazonaws.http.HttpResponseHandler;
 import com.amazonaws.http.JsonErrorResponseHandler;
 import com.amazonaws.http.JsonResponseHandler;
 import com.amazonaws.transform.JsonErrorUnmarshaller;
+import com.amazonaws.transform.VoidJsonUnmarshaller;
 import com.amazonaws.util.AWSRequestMetrics;
 import com.amazonaws.util.StringInputStream;
 import com.amazonaws.util.json.JSONObject;
@@ -42,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 
 import static com.amazonaws.http.HttpMethodName.GET;
+import static com.amazonaws.http.HttpMethodName.PATCH;
 import static com.amazonaws.http.HttpMethodName.POST;
 import static com.amazonaws.http.HttpMethodName.PUT;
 import static com.amazonaws.http.HttpMethodName.DELETE;
@@ -59,8 +62,8 @@ public class HalClient extends AmazonWebServiceClient {
     //-------------------------------------------------------------
 
     private AWSCredentialsProvider awsCredentialsProvider;
-    private List<JsonErrorUnmarshaller> exceptionUnmarshallers;
     private Map<String, Object> resourceCache;
+    private HttpResponseHandler<AmazonServiceException> errorResponseHandler;
 
 
     //-------------------------------------------------------------
@@ -68,15 +71,15 @@ public class HalClient extends AmazonWebServiceClient {
     //-------------------------------------------------------------
 
     public HalClient(ClientConfiguration clientConfiguration, String endpoint, String serviceName,
-                     AWSCredentialsProvider awsCredentialsProvider, Map<String, Object> resourceCache) {
+                     AWSCredentialsProvider awsCredentialsProvider, Map<String, Object> resourceCache,
+                     HttpResponseHandler<AmazonServiceException> errorResponseHandler) {
         super(clientConfiguration);
 
         this.setServiceNameIntern(serviceName);
         this.setEndpoint(endpoint);
         this.awsCredentialsProvider = awsCredentialsProvider;
-        this.exceptionUnmarshallers = new ArrayList<>();
-        this.exceptionUnmarshallers.add(new JsonErrorUnmarshaller());
         this.resourceCache = resourceCache;
+        this.errorResponseHandler = errorResponseHandler;
         this.addRequestHandler(new AcceptHalJsonRequestHandler());
     }
 
@@ -91,7 +94,7 @@ public class HalClient extends AmazonWebServiceClient {
 
 
     public <T> T postResource(Class<T> resourceClass, String resourcePath, Object representation) {
-        OptionalJsonResponseHandler<HalResource> responseHandler = new OptionalJsonResponseHandler<>(HalJsonResourceUnmarshaller.getInstance());
+        OptionalJsonResponseHandler<HalResource> responseHandler = getResponseHandler(resourceClass);
         HalResource halResource = invoke(POST, resourcePath, representation, responseHandler);
         Object cachedResource = resourceCache.get(resourcePath);
 
@@ -110,12 +113,12 @@ public class HalClient extends AmazonWebServiceClient {
             return resourceClass.cast(cachedResource);
         }
 
-        return createAndCacheResource(resourceClass, halResourcePath, halResource);
+        return halResource == null ? null : createAndCacheResource(resourceClass, resourcePath, halResource);
     }
 
 
     public <T> T putResource(Class<T> resourceClass, String resourcePath, Object representation) {
-        OptionalJsonResponseHandler<HalResource> responseHandler = new OptionalJsonResponseHandler<>(HalJsonResourceUnmarshaller.getInstance());
+        OptionalJsonResponseHandler<HalResource> responseHandler = getResponseHandler(resourceClass);
         HalResource halResource = invoke(PUT, resourcePath, representation,responseHandler);
         Object cachedResource = resourceCache.get(resourcePath);
 
@@ -130,12 +133,12 @@ public class HalClient extends AmazonWebServiceClient {
             return resourceClass.cast(cachedResource);
         }
 
-        return createAndCacheResource(resourceClass, resourcePath, halResource);
+        return halResource == null ? null : createAndCacheResource(resourceClass, resourcePath, halResource);
     }
 
 
     public <T> T deleteResource(Class<T> resourceClass, String resourcePath) {
-        OptionalJsonResponseHandler<HalResource> responseHandler = new OptionalJsonResponseHandler<>(HalJsonResourceUnmarshaller.getInstance());
+        OptionalJsonResponseHandler<HalResource> responseHandler = getResponseHandler(resourceClass);
         HalResource halResource = invoke(DELETE, resourcePath, null, responseHandler);
         Object cachedResource = resourceCache.get(resourcePath);
 
@@ -150,7 +153,31 @@ public class HalClient extends AmazonWebServiceClient {
             // TODO: follow embedded resources and call remove() and resourceUpdated()
         }
 
-        return createResource(resourceClass, resourcePath, halResource);
+        return halResource == null ? null : createResource(resourceClass, resourcePath, halResource);
+    }
+
+
+    public <T> T patchResource(Class<T> resourceClass, String resourcePath, Object representation) {
+        OptionalJsonResponseHandler<HalResource> responseHandler = getResponseHandler(resourceClass);
+        HalResource halResource = invoke(PATCH, resourcePath, representation, responseHandler);
+        Object cachedResource = resourceCache.get(resourcePath);
+
+        String halResourcePath = getHalResourcePath(halResource, responseHandler);
+
+        // Check if the cached resource we just PATCHed to is the same resource we got back.  If yes, update the existing proxy's
+        // invocation handler with the new data and return it.
+        // TODO: Handle multi-resource patches (e.g. child resources of the current resource)
+        // TODO: Review collection cache clearing strategy.
+        if (cachedResource != null && resourcePath.equals(halResourcePath)) {
+            HalResourceInvocationHandler invocationHandler = (HalResourceInvocationHandler) Proxy.getInvocationHandler(cachedResource);
+
+            invocationHandler.resourceUpdated(halResource);
+            // TODO: follow embedded resources and call resourceUpdated()
+
+            return resourceClass.cast(cachedResource);
+        }
+
+        return halResource == null ? null : createAndCacheResource(resourceClass, resourcePath, halResource);
     }
 
 
@@ -203,8 +230,6 @@ public class HalClient extends AmazonWebServiceClient {
         awsRequestMetrics.endEvent(AWSRequestMetrics.Field.CredentialsRequestTime.name());
 
         executionContext.setCredentials(credentials);
-
-        JsonErrorResponseHandler errorResponseHandler = new JsonErrorResponseHandler(exceptionUnmarshallers);
 
         awsRequestMetrics.startEvent(AWSRequestMetrics.Field.ClientExecuteTime.name());
         Response<T> response = client.execute(request, responseHandler, errorResponseHandler, executionContext);
@@ -274,6 +299,15 @@ public class HalClient extends AmazonWebServiceClient {
         } catch(Throwable t) {
             throw new AmazonClientException("Unable to marshall request to JSON: " + t.getMessage(), t);
         }
+    }
+
+
+    private <T> OptionalJsonResponseHandler<HalResource> getResponseHandler(Class<T> resourceClass) {
+        if (resourceClass.equals(Void.class) || resourceClass.equals(void.class)) {
+            return new OptionalJsonResponseHandler<>(new VoidJsonUnmarshaller<HalResource>());
+        }
+
+        return new OptionalJsonResponseHandler<>(HalJsonResourceUnmarshaller.getInstance());
     }
 
 

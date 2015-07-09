@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2014 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * Copyright 2010-2015 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -128,6 +128,14 @@ class HalResourceInvocationHandler
             case DELETE:
                 return halClient.deleteResource(method.getReturnType(),
                                                 getRelationHref(link, args == null ? EMPTY_ARGS : args, method.getParameterAnnotations()));
+
+            case PATCH:
+                if (args == null) {
+                    throw new IllegalArgumentException("PATCH operations require a representation argument.");
+                }
+
+                return halClient.patchResource(method.getReturnType(),
+                                               getRelationHref(link, args, method.getParameterAnnotations()), args[0]);
 
             default:
                 throw new UnsupportedOperationException("Unexpected HTTP method: " + link.method());
